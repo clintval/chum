@@ -197,52 +197,16 @@ mod tests {
         );
     }
 
-    /// Create a bgzf-compressed, tabix-indexed bedGraph in `dir` from `records`.
+    /// Path to the committed mappability fixture: `tests/data/mappability.bedgraph.gz` (+ `.tbi`).
     ///
-    /// Records must be sorted by chrom then start. Returns the `.gz` path, or
-    /// `None` if `bgzip` or `tabix` are not on `$PATH`.
-    fn make_tabix_bedgraph(
-        dir: &tempfile::TempDir,
-        records: &[(&str, u64, u64, f64)],
-    ) -> Option<std::path::PathBuf> {
-        use std::io::Write;
-        if which::which("bgzip").is_err() || which::which("tabix").is_err() {
-            return None;
-        }
-        let raw = dir.path().join("scores.bedgraph");
-        let mut f = std::fs::File::create(&raw).unwrap();
-        for &(chrom, start, end, value) in records {
-            writeln!(f, "{chrom}\t{start}\t{end}\t{value}").unwrap();
-        }
-        drop(f);
-        // bgzip compresses in-place: scores.bedgraph → scores.bedgraph.gz
-        let status = std::process::Command::new("bgzip")
-            .arg(raw.to_str().unwrap())
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        let gz = dir.path().join("scores.bedgraph.gz");
-        // tabix -p bed creates scores.bedgraph.gz.tbi
-        let status = std::process::Command::new("tabix")
-            .args(["-p", "bed", gz.to_str().unwrap()])
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        Some(gz)
+    /// Single record: `chr1  0  200  0.75`.
+    fn mappability_fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/mappability.bedgraph.gz")
     }
 
     #[test]
-    fn test_mappability_reader_new_success_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let records = [("chr1", 0u64, 100u64, 1.0f64)];
-        let Some(gz) = make_tabix_bedgraph(&dir, &records) else {
-            return; // bgzip or tabix not on $PATH
-        };
-        let reader = MappabilityReader::new(&gz);
+    fn test_mappability_reader_new_success() {
+        let reader = MappabilityReader::new(&mappability_fixture());
         assert!(
             reader.is_ok(),
             "MappabilityReader::new failed: {:?}",
@@ -251,44 +215,36 @@ mod tests {
     }
 
     #[test]
-    fn test_scores_for_bait_via_tabix_full_overlap() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let records = [("chr1", 0u64, 10u64, 0.8f64)];
-        let Some(gz) = make_tabix_bedgraph(&dir, &records) else {
-            return;
-        };
-        let reader = MappabilityReader::new(&gz).unwrap();
+    fn test_scores_for_bait_fixture_full_overlap() {
+        // Fixture chr1 [0,200) at 0.75; bait [0,10) is fully covered → all 10 scores = 0.75.
+        let reader = MappabilityReader::new(&mappability_fixture()).unwrap();
         let bait = make_bait("chr1", 0, 10);
         let scores = reader.scores_for_bait(&bait).unwrap();
         assert_eq!(scores.len(), 10);
-        assert!(scores.iter().all(|&s| (s - 0.8).abs() < f64::EPSILON));
+        assert!(scores.iter().all(|&s| (s - 0.75).abs() < f64::EPSILON));
     }
 
     #[test]
-    fn test_scores_for_bait_via_tabix_partial_overlap() {
-        let dir = tempfile::TempDir::new().unwrap();
-        // bedGraph record covers [0,5); bait is [0,10) → first 5 bases = 0.5, rest = 0.0
-        let records = [("chr1", 0u64, 5u64, 0.5f64)];
-        let Some(gz) = make_tabix_bedgraph(&dir, &records) else {
-            return;
-        };
-        let reader = MappabilityReader::new(&gz).unwrap();
-        let bait = make_bait("chr1", 0, 10);
+    fn test_scores_for_bait_fixture_partial_overlap() {
+        // Fixture chr1 [0,200) at 0.75; bait [100,250) extends past the record end.
+        // Positions 0..100 of bait (genome [100,200)) = 0.75; positions 100..150 (genome [200,250)) = 0.0.
+        let reader = MappabilityReader::new(&mappability_fixture()).unwrap();
+        let bait = make_bait("chr1", 100, 250);
         let scores = reader.scores_for_bait(&bait).unwrap();
-        assert_eq!(scores.len(), 10);
-        assert!(scores[..5].iter().all(|&s| (s - 0.5).abs() < f64::EPSILON));
-        assert!(scores[5..].iter().all(|&s| s == 0.0));
+        assert_eq!(scores.len(), 150);
+        assert!(
+            scores[..100]
+                .iter()
+                .all(|&s| (s - 0.75).abs() < f64::EPSILON)
+        );
+        assert!(scores[100..].iter().all(|&s| s == 0.0));
     }
 
     #[test]
-    fn test_scores_for_bait_via_tabix_no_overlap_returns_zeros() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let records = [("chr1", 200u64, 300u64, 1.0f64)];
-        let Some(gz) = make_tabix_bedgraph(&dir, &records) else {
-            return;
-        };
-        let reader = MappabilityReader::new(&gz).unwrap();
-        let bait = make_bait("chr1", 0, 10);
+    fn test_scores_for_bait_fixture_no_overlap_returns_zeros() {
+        // Fixture chr1 [0,200); bait [300,310) has no overlapping records → all zeros.
+        let reader = MappabilityReader::new(&mappability_fixture()).unwrap();
+        let bait = make_bait("chr1", 300, 310);
         let scores = reader.scores_for_bait(&bait).unwrap();
         assert!(scores.iter().all(|&s| s == 0.0));
     }

@@ -184,52 +184,9 @@ mod tests {
         );
     }
 
-    /// Create a bgzf-compressed, tabix-indexed BED4 file in `dir` from `records`.
-    ///
-    /// Records must be sorted by chrom then start. Returns the `.gz` path, or
-    /// `None` if `bgzip` or `tabix` are not on `$PATH`.
-    fn make_tabix_bed(
-        dir: &tempfile::TempDir,
-        records: &[(&str, u64, u64, &str)],
-    ) -> Option<std::path::PathBuf> {
-        use std::io::Write;
-        if which::which("bgzip").is_err() || which::which("tabix").is_err() {
-            return None;
-        }
-        let raw = dir.path().join("features.bed");
-        let mut f = std::fs::File::create(&raw).unwrap();
-        for &(chrom, start, end, name) in records {
-            writeln!(f, "{chrom}\t{start}\t{end}\t{name}").unwrap();
-        }
-        drop(f);
-        // bgzip compresses in-place: features.bed → features.bed.gz
-        let status = std::process::Command::new("bgzip")
-            .arg(raw.to_str().unwrap())
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        let gz = dir.path().join("features.bed.gz");
-        // tabix -p bed creates features.bed.gz.tbi
-        let status = std::process::Command::new("tabix")
-            .args(["-p", "bed", gz.to_str().unwrap()])
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        Some(gz)
-    }
-
     #[test]
-    fn test_repbase_reader_new_success_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let records = [("chr1", 0u64, 100u64, "Alu")];
-        let Some(gz) = make_tabix_bed(&dir, &records) else {
-            return; // bgzip or tabix not on $PATH
-        };
-        let reader = RepBaseReader::new(&gz);
+    fn test_repbase_reader_new_success() {
+        let reader = RepBaseReader::new(&repbase_fixture());
         assert!(
             reader.is_ok(),
             "RepBaseReader::new failed: {:?}",
@@ -237,48 +194,52 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_overlapping_features_via_tabix_single_hit() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let records = [("chr1", 0u64, 100u64, "Alu")];
-        let Some(gz) = make_tabix_bed(&dir, &records) else {
-            return;
-        };
-        let reader = RepBaseReader::new(&gz).unwrap();
-        let bait = make_bait("chr1", 0, 100);
-        let features = reader.overlapping_features(&bait).unwrap();
-        assert_eq!(features, vec!["Alu"]);
+    /// Path to the committed repbase fixture: `tests/data/repbase.bed.gz` (+ `.tbi`).
+    ///
+    /// Records:
+    /// ```text
+    /// chr1  0    50   Alu
+    /// chr1  0    100  L1
+    /// chr1  50   100  Alu   ← duplicate of the first Alu
+    /// chr1  500  600  MIR3
+    /// ```
+    fn repbase_fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/repbase.bed.gz")
     }
 
     #[test]
-    fn test_overlapping_features_via_tabix_no_overlap() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let records = [("chr1", 500u64, 600u64, "L1")];
-        let Some(gz) = make_tabix_bed(&dir, &records) else {
-            return;
-        };
-        let reader = RepBaseReader::new(&gz).unwrap();
+    fn test_overlapping_features_fixture_overlapping_sorted_deduped() {
+        // Bait [0,100) overlaps Alu (twice) and L1 → sorted+deduped: ["Alu", "L1"]
+        let reader = RepBaseReader::new(&repbase_fixture()).unwrap();
         let bait = make_bait("chr1", 0, 100);
+        let features = reader.overlapping_features(&bait).unwrap();
+        assert_eq!(features, vec!["Alu", "L1"]);
+    }
+
+    #[test]
+    fn test_overlapping_features_fixture_single_hit() {
+        // Bait [500,600) overlaps only MIR3
+        let reader = RepBaseReader::new(&repbase_fixture()).unwrap();
+        let bait = make_bait("chr1", 500, 600);
+        let features = reader.overlapping_features(&bait).unwrap();
+        assert_eq!(features, vec!["MIR3"]);
+    }
+
+    #[test]
+    fn test_overlapping_features_fixture_no_overlap() {
+        // Bait [200,300) has no overlapping records
+        let reader = RepBaseReader::new(&repbase_fixture()).unwrap();
+        let bait = make_bait("chr1", 200, 300);
         let features = reader.overlapping_features(&bait).unwrap();
         assert!(features.is_empty());
     }
 
     #[test]
-    fn test_overlapping_features_via_tabix_multiple_sorted_deduped() {
-        let dir = tempfile::TempDir::new().unwrap();
-        // Two overlapping records: one Alu appearing twice (dedup), one L1.
-        let records = [
-            ("chr1", 0u64, 50u64, "Alu"),
-            ("chr1", 0u64, 100u64, "L1"),
-            ("chr1", 50u64, 100u64, "Alu"), // duplicate name
-        ];
-        let Some(gz) = make_tabix_bed(&dir, &records) else {
-            return;
-        };
-        let reader = RepBaseReader::new(&gz).unwrap();
-        let bait = make_bait("chr1", 0, 100);
+    fn test_overlapping_features_fixture_partial_overlap_left() {
+        // Bait [40,60) clips both Alu records and L1 → sorted+deduped: ["Alu", "L1"]
+        let reader = RepBaseReader::new(&repbase_fixture()).unwrap();
+        let bait = make_bait("chr1", 40, 60);
         let features = reader.overlapping_features(&bait).unwrap();
-        // sorted + deduped → ["Alu", "L1"]
         assert_eq!(features, vec!["Alu", "L1"]);
     }
 }

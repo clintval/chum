@@ -900,80 +900,18 @@ mod tests {
         assert!(baits[0].sequence.is_none());
     }
 
-    /// Create a bgzf+tabix bedGraph fixture, or return None if tools are absent.
-    fn make_tabix_bedgraph(
-        dir: &tempfile::TempDir,
-        records: &[(&str, u64, u64, f64)],
-    ) -> Option<std::path::PathBuf> {
-        use std::io::Write;
-        if which::which("bgzip").is_err() || which::which("tabix").is_err() {
-            return None;
-        }
-        let raw = dir.path().join("scores.bedgraph");
-        let mut f = std::fs::File::create(&raw).unwrap();
-        for &(chrom, start, end, value) in records {
-            writeln!(f, "{chrom}\t{start}\t{end}\t{value}").unwrap();
-        }
-        drop(f);
-        let status = std::process::Command::new("bgzip")
-            .arg(raw.to_str().unwrap())
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        let gz = dir.path().join("scores.bedgraph.gz");
-        let status = std::process::Command::new("tabix")
-            .args(["-p", "bed", gz.to_str().unwrap()])
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        Some(gz)
+    fn mappability_fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/mappability.bedgraph.gz")
     }
 
-    /// Create a bgzf+tabix BED4 fixture, or return None if tools are absent.
-    fn make_tabix_bed(
-        dir: &tempfile::TempDir,
-        records: &[(&str, u64, u64, &str)],
-    ) -> Option<std::path::PathBuf> {
-        use std::io::Write;
-        if which::which("bgzip").is_err() || which::which("tabix").is_err() {
-            return None;
-        }
-        let raw = dir.path().join("features.bed");
-        let mut f = std::fs::File::create(&raw).unwrap();
-        for &(chrom, start, end, name) in records {
-            writeln!(f, "{chrom}\t{start}\t{end}\t{name}").unwrap();
-        }
-        drop(f);
-        let status = std::process::Command::new("bgzip")
-            .arg(raw.to_str().unwrap())
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        let gz = dir.path().join("features.bed.gz");
-        let status = std::process::Command::new("tabix")
-            .args(["-p", "bed", gz.to_str().unwrap()])
-            .status()
-            .ok()?;
-        if !status.success() {
-            return None;
-        }
-        Some(gz)
+    fn repbase_fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/repbase.bed.gz")
     }
 
     #[test]
-    fn test_bait_evaluator_new_with_mappability_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let Some(gz) = make_tabix_bedgraph(&dir, &[("chr1", 0, 100, 1.0)]) else {
-            return;
-        };
+    fn test_bait_evaluator_new_with_mappability() {
         let mut config = minimal_config();
-        config.mappability = Some(gz);
+        config.mappability = Some(mappability_fixture());
         let result = BaitEvaluator::new(config);
         assert!(
             result.is_ok(),
@@ -983,13 +921,9 @@ mod tests {
     }
 
     #[test]
-    fn test_bait_evaluator_new_with_repbase_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let Some(gz) = make_tabix_bed(&dir, &[("chr1", 0, 100, "Alu")]) else {
-            return;
-        };
+    fn test_bait_evaluator_new_with_repbase() {
         let mut config = minimal_config();
-        config.rep_base = Some(gz);
+        config.rep_base = Some(repbase_fixture());
         let result = BaitEvaluator::new(config);
         assert!(
             result.is_ok(),
@@ -999,31 +933,26 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate_with_repbase_populates_features_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let Some(gz) = make_tabix_bed(&dir, &[("chr1", 0, 200, "Alu")]) else {
-            return;
-        };
+    fn test_evaluate_with_repbase_populates_features() {
+        // Fixture: chr1 0-50 Alu, chr1 0-100 L1, chr1 50-100 Alu, chr1 500-600 MIR3.
+        // Bait [50,150) overlaps L1 [0,100) and Alu [50,100) → "Alu,L1".
         let mut config = minimal_config();
-        config.rep_base = Some(gz);
+        config.rep_base = Some(repbase_fixture());
         let evaluator = BaitEvaluator::new(config).unwrap();
         let bait = Bait::new("chr1", 50, 150, "b");
         let metric = evaluator.evaluate(&bait).unwrap();
         assert_eq!(
             metric.rep_base_features.as_deref(),
-            Some("Alu"),
-            "RepBase feature should be populated"
+            Some("Alu,L1"),
+            "RepBase features should be populated"
         );
     }
 
     #[test]
-    fn test_evaluate_with_mappability_populates_scores_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let Some(gz) = make_tabix_bedgraph(&dir, &[("chr1", 0, 200, 0.75)]) else {
-            return;
-        };
+    fn test_evaluate_with_mappability_populates_scores() {
+        // Fixture: chr1 0-200 0.75. Bait [50,150) is fully covered → mean 0.75.
         let mut config = minimal_config();
-        config.mappability = Some(gz);
+        config.mappability = Some(mappability_fixture());
         let evaluator = BaitEvaluator::new(config).unwrap();
         let bait = Bait::new("chr1", 50, 150, "b");
         let metric = evaluator.evaluate(&bait).unwrap();
@@ -1038,18 +967,10 @@ mod tests {
     }
 
     #[test]
-    fn test_bait_evaluator_debug_with_mappability_and_repbase_if_tools_available() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let Some(map_gz) = make_tabix_bedgraph(&dir, &[("chr1", 0, 100, 1.0)]) else {
-            return;
-        };
-        let dir2 = tempfile::TempDir::new().unwrap();
-        let Some(rep_gz) = make_tabix_bed(&dir2, &[("chr1", 0, 100, "Alu")]) else {
-            return;
-        };
+    fn test_bait_evaluator_debug_with_mappability_and_repbase() {
         let mut config = minimal_config();
-        config.mappability = Some(map_gz);
-        config.rep_base = Some(rep_gz);
+        config.mappability = Some(mappability_fixture());
+        config.rep_base = Some(repbase_fixture());
         let evaluator = BaitEvaluator::new(config).unwrap();
         let debug_str = format!("{evaluator:?}");
         assert!(
