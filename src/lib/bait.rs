@@ -1033,4 +1033,118 @@ mod tests {
             "debug output should mention RnaFoldProcess"
         );
     }
+
+    /// Build a [`BlastRunner`] pointing at the pre-built BLAST database bundled with test data.
+    fn blast_runner_fixture() -> blast::BlastRunner {
+        let db_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/blast");
+        blast::BlastRunner::new("hs38DH-chr3:129530791-129531030", Some(db_path), false, 1)
+    }
+
+    /// First 60 bp of the `test-contig` sequence in the bundled BLAST test FASTA.
+    const TEST_SEQ_60: &str = "CTAGCTACCCTCTCCCTGTCTAGGGGGGAGTGCACCCTCCTTAGGCAGTGGGGTCTGTGC";
+
+    #[test]
+    fn test_apply_blast_to_batch_empty_batch_returns_ok() {
+        // Empty slices must succeed without spawning blastn.
+        let evaluator = BaitEvaluator::new(minimal_config()).unwrap();
+        let runner = blast::BlastRunner::new("dummy", None, false, 1);
+        let result = apply_blast_to_batch(&evaluator, &runner, &[], &mut []);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_apply_blast_to_batch_populates_blast_fields() {
+        skip_if_missing!("blastn");
+        let runner = blast_runner_fixture();
+        let evaluator = BaitEvaluator::new(minimal_config()).unwrap();
+        let seq = TEST_SEQ_60.to_string();
+        let bait = Bait::with_sequence("test-contig", 0, seq.len() as u64, "b0", seq);
+        let mut metrics = vec![evaluator.evaluate(&bait).unwrap()];
+        apply_blast_to_batch(&evaluator, &runner, &[bait], &mut metrics).unwrap();
+        assert!(
+            metrics[0].blast_hits.is_some(),
+            "blast_hits should be populated after apply_blast_to_batch"
+        );
+        assert!(
+            metrics[0].blast_top_hit_interval.is_some(),
+            "blast_top_hit_interval should be populated after apply_blast_to_batch"
+        );
+    }
+
+    #[test]
+    fn test_apply_blast_to_batch_derives_forward_strand_from_hit() {
+        skip_if_missing!("blastn");
+        let runner = blast_runner_fixture();
+        let evaluator = BaitEvaluator::new(minimal_config()).unwrap();
+        let seq = TEST_SEQ_60.to_string();
+        let bait = Bait::with_sequence("test-contig", 0, seq.len() as u64, "b0", seq);
+        let mut metric = evaluator.evaluate(&bait).unwrap();
+        metric.strand = None; // ensure unset before BLAST
+        let mut metrics = vec![metric];
+        apply_blast_to_batch(&evaluator, &runner, &[bait], &mut metrics).unwrap();
+        assert_eq!(
+            metrics[0].strand.as_deref(),
+            Some("+"),
+            "forward BLAST hit should set strand to '+'"
+        );
+    }
+
+    #[test]
+    fn test_apply_blast_to_batch_derives_reverse_strand_from_hit() {
+        skip_if_missing!("blastn");
+        let runner = blast_runner_fixture();
+        let evaluator = BaitEvaluator::new(minimal_config()).unwrap();
+        let rc_seq = crate::sequence::reverse_complement(TEST_SEQ_60);
+        let len = rc_seq.len() as u64;
+        // RC of the forward sequence should align on the minus strand (sstart > send).
+        let bait = Bait::with_sequence("test-contig", 0, len, "b0", rc_seq);
+        let mut metric = evaluator.evaluate(&bait).unwrap();
+        metric.strand = None;
+        let mut metrics = vec![metric];
+        apply_blast_to_batch(&evaluator, &runner, &[bait], &mut metrics).unwrap();
+        assert_eq!(
+            metrics[0].strand.as_deref(),
+            Some("-"),
+            "reverse-complement BLAST hit should set strand to '-'"
+        );
+    }
+
+    #[test]
+    fn test_apply_blast_to_batch_preserves_existing_strand() {
+        skip_if_missing!("blastn");
+        let runner = blast_runner_fixture();
+        let evaluator = BaitEvaluator::new(minimal_config()).unwrap();
+        let seq = TEST_SEQ_60.to_string();
+        let mut bait = Bait::with_sequence("test-contig", 0, seq.len() as u64, "b0", seq);
+        bait.strand = Some('+');
+        let mut metrics = vec![evaluator.evaluate(&bait).unwrap()];
+        apply_blast_to_batch(&evaluator, &runner, &[bait], &mut metrics).unwrap();
+        assert_eq!(
+            metrics[0].strand.as_deref(),
+            Some("+"),
+            "pre-set strand should not be overwritten by BLAST top hit"
+        );
+    }
+
+    #[test]
+    fn test_apply_blast_to_batch_unlocated_bait_sets_proxy_bait() {
+        skip_if_missing!("blastn");
+        let runner = blast_runner_fixture();
+        let evaluator = BaitEvaluator::new(minimal_config()).unwrap();
+        let seq = TEST_SEQ_60.to_string();
+        let len = seq.len() as u64;
+        // chrom = "unknown" → is_located() == false
+        let bait = Bait::with_sequence("unknown", 0, len, "b0", seq);
+        let mut metrics = vec![evaluator.evaluate(&bait).unwrap()];
+        apply_blast_to_batch(&evaluator, &runner, &[bait], &mut metrics).unwrap();
+        assert!(
+            metrics[0].blast_proxy_bait.is_some(),
+            "unlocated bait with BLAST hits should have a proxy bait stored"
+        );
+        let proxy = metrics[0].blast_proxy_bait.as_ref().unwrap();
+        assert_eq!(
+            proxy.chrom, "test-contig",
+            "proxy bait chrom should match BLAST top-hit subject"
+        );
+    }
 }
