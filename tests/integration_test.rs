@@ -28,7 +28,12 @@ fn data(name: &str) -> String {
 fn test_run_with_baits_only_bed() {
     let out = NamedTempFile::new().unwrap();
     score()
-        .args(["-b", &data("baits.bed"), "--per-bait", out.path().to_str().unwrap()])
+        .args([
+            "-b",
+            &data("baits.bed"),
+            "--per-bait",
+            out.path().to_str().unwrap(),
+        ])
         .assert()
         .success();
 
