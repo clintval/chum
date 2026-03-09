@@ -1,0 +1,13 @@
+[workspace]
+name = "chum"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64", "osx-64", "osx-arm64"]
+
+[feature.blast.dependencies]
+blast = { version = "==2.16.0", channel = "bioconda" }
+
+[feature.viennarna.dependencies]
+viennarna = { version = "==2.7.2", channel = "bioconda" }
+
+[environments]
+default = { features = ["blast", "viennarna"] }

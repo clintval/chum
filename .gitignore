@@ -1,0 +1,9 @@
+.claude/
+.idea/
+debug/
+target/
+
+**/*.rs.bk
+
+*.iml
+.DS_Store

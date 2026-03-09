@@ -1,0 +1,50 @@
+[package]
+name = "chum"
+version = "0.1.0"
+authors = ["Clint Valentine <valentine.clint@gmail.com>"]
+edition = "2024"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/clintval/chum"
+description = "In silico hybrid selection bait validator."
+documentation = "https://github.com/clintval/chum/README.md"
+categories = ["command-line-utilities", "science"]
+keywords = ["bioinformatics", "bait", "hybrid-selection", "probe"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+
+[lib]
+name = "chumlib"
+path = "src/lib/mod.rs"
+
+[[bin]]
+name = "chum"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+bio = "2"
+clap = { version = "4", features = ["derive", "wrap_help"] }
+csv = "1"
+env_logger = "0.11"
+log = "0.4"
+noodles = { version = "0", features = ["bgzf", "tabix", "csi", "core", "sam"] }
+proglog = "0.4"
+rayon = "1"
+rust-lapper = "1"
+serde = { version = "1", features = ["derive"] }
+serde_with = "3"
+statrs = "0"
+tempfile = "3"
+which = "6"
+
+[dev-dependencies]
+assert_cmd = "2"
+pretty_assertions = "1"
+rstest = "0.26"
+tempfile = "3"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

@@ -1,0 +1,4 @@
+bait_name	interval	bait_length	strand	gc_content	masked_bases	homopolymers_size_3_or_greater	longest_homopolymer_size	rep_base_features	blast_top_hit_interval	blast_top_hit_matches	blast_top_hit_overlaps	blast_top_hit_e_value	blast_top_hit_identity	blast_hits	blast_second_hit_interval	blast_second_hit_length	blast_second_hit_percent	blast_second_hit_gaps	blast_second_hit_e_value	mito_hit_interval	mito_hit_e_value	mito_hit_identity	mean_mappability	min_mappability	q1_mappability	median_mappability	q3_mappability	max_mappability	unique_mappability	zero_mappability	min_free_energy	folding_structure	oligo_fold_temperature	oligo_fold_param_file	sequence	target_name	target_interval	target_centering	bait_score
+bait1	chr1:101-220	120	+																																				
+bait2	chr1:301-420	120	+																																				
+bait3	chr1:501-620	120	-																																				

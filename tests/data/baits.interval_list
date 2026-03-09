@@ -1,0 +1,5 @@
+@HD	VN:1.6
+@SQ	SN:chr1	LN:1000000
+chr1	101	220	+	bait1
+chr1	301	420	+	bait2
+chr1	501	620	-	bait3
