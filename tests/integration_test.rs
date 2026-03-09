@@ -28,7 +28,7 @@ fn data(name: &str) -> String {
 fn test_run_with_baits_only_bed() {
     let out = NamedTempFile::new().unwrap();
     score()
-        .args(["-b", &data("baits.bed"), "-o", out.path().to_str().unwrap()])
+        .args(["-b", &data("baits.bed"), "--per-bait", out.path().to_str().unwrap()])
         .assert()
         .success();
 
@@ -49,7 +49,7 @@ fn test_run_with_interval_list_input() {
         .args([
             "-b",
             &data("baits.interval_list"),
-            "-o",
+            "--per-bait",
             out.path().to_str().unwrap(),
         ])
         .assert()
@@ -64,47 +64,47 @@ fn test_run_with_interval_list_input() {
     );
 }
 
-/// `--targets` without `--group-output` must fail.
+/// `--targets` without `--per-target` must fail.
 #[test]
-fn test_targets_without_group_output_fails() {
+fn test_targets_without_per_target_fails() {
     score()
         .args(["-b", &data("baits.bed"), "-t", &data("targets.bed")])
         .assert()
         .failure();
 }
 
-/// `--group-output` without `--targets` must fail.
+/// `--per-target` without `--targets` must fail.
 #[test]
-fn test_group_output_without_targets_fails() {
+fn test_per_target_without_targets_fails() {
     let out = NamedTempFile::new().unwrap();
     let group_out = NamedTempFile::new().unwrap();
     score()
         .args([
             "-b",
             &data("baits.bed"),
-            "-o",
+            "--per-bait",
             out.path().to_str().unwrap(),
-            "--group-output",
+            "--per-target",
             group_out.path().to_str().unwrap(),
         ])
         .assert()
         .failure();
 }
 
-/// `--targets` + `--group-output` together must succeed and write both output files.
+/// `--targets` + `--per-target` together must succeed and write both output files.
 #[test]
-fn test_run_with_targets_and_group_output() {
+fn test_run_with_targets_and_per_target() {
     let out = NamedTempFile::new().unwrap();
     let group_out = NamedTempFile::new().unwrap();
     score()
         .args([
             "-b",
             &data("baits.bed"),
-            "-o",
+            "--per-bait",
             out.path().to_str().unwrap(),
             "-t",
             &data("targets.bed"),
-            "--group-output",
+            "--per-target",
             group_out.path().to_str().unwrap(),
         ])
         .assert()

@@ -50,7 +50,7 @@ per-target aggregate metrics including minimum, mean, and maximum of each
 numeric bait field across all overlapping (or nearby) baits. Targets can be
 optionally padded which helps with linking near-baits to targets on either
 side of the original target interval with `--target-padding`. The aggregate
-output file is specified with `--group-output`, which must be supplied
+output file is specified with `--per-target`, which must be supplied
 whenever `--targets` is set.
 
 When interpreting mean metric values, note that baits with no value for a
@@ -145,7 +145,7 @@ struct Score {
 
     /// Output per-bait metrics TSV. If unset, uses stdout.
     #[arg(short = 'o', long)]
-    output: Option<PathBuf>,
+    per_bait: Option<PathBuf>,
 
     /// Indexed FASTA reference. Required with BED or Interval List input.
     #[arg(short = 'r', long)]
@@ -157,7 +157,7 @@ struct Score {
 
     /// Output per-target aggregated metrics TSV.
     #[arg(short = 'g', long)]
-    group_output: Option<PathBuf>,
+    per_target: Option<PathBuf>,
 
     /// Bases to pad targets when matching baits.
     #[arg(long, default_value_t = 0)]
@@ -221,7 +221,7 @@ fn main() -> Result<(), Error> {
 
     match cli.command {
         Commands::Score(score) => {
-            match &score.output {
+            match &score.per_bait {
                 Some(output) if output.to_str().unwrap_or("") != "-" => {
                     info!("Output file: {output:?}")
                 }
@@ -230,10 +230,10 @@ fn main() -> Result<(), Error> {
 
             let args = ScoreRunArgs {
                 baits: score.baits,
-                output: score.output,
+                per_bait: score.per_bait,
                 reference: score.reference,
                 targets: score.targets,
-                group_output: score.group_output,
+                per_target: score.per_target,
                 target_padding: score.target_padding,
                 blast_db: score.blast_db,
                 blast_db_path: score.blast_db_path,

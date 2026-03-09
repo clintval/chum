@@ -47,13 +47,13 @@ pub struct ScoreRunArgs {
     /// Input BED, Interval List, or FASTA of baits.
     pub baits: PathBuf,
     /// Output per-bait TSV path (stdout if `None` or `-`).
-    pub output: Option<PathBuf>,
+    pub per_bait: Option<PathBuf>,
     /// Indexed FASTA reference.
     pub reference: Option<PathBuf>,
     /// Target intervals for centering and group metrics.
     pub targets: Option<PathBuf>,
     /// Output per-target group metrics TSV.
-    pub group_output: Option<PathBuf>,
+    pub per_target: Option<PathBuf>,
     /// Bases to pad targets when matching baits.
     pub target_padding: u32,
     /// BLASTn database name.
@@ -83,8 +83,8 @@ pub struct ScoreRunArgs {
 /// Run `chum` end-to-end given the provided [`ScoreRunArgs`].
 pub fn run_score(args: ScoreRunArgs) -> Result<()> {
     // Validate co-required arguments.
-    if args.targets.is_some() != args.group_output.is_some() {
-        bail!("`--targets` and `--group-output` must both be provided or both omitted");
+    if args.targets.is_some() != args.per_target.is_some() {
+        bail!("`--targets` and `--per-target` must both be provided or both omitted");
     }
 
     let optional_files: &[(&str, Option<&PathBuf>)] = &[
@@ -251,7 +251,7 @@ pub fn run_score(args: ScoreRunArgs) -> Result<()> {
     }
 
     // Write per-bait output.
-    let output_writer: Box<dyn std::io::Write> = match &args.output {
+    let output_writer: Box<dyn std::io::Write> = match &args.per_bait {
         Some(path) if path.to_str().unwrap_or("") != "-" => Box::new(std::fs::File::create(path)?),
         _ => Box::new(std::io::stdout()),
     };
@@ -273,7 +273,7 @@ pub fn run_score(args: ScoreRunArgs) -> Result<()> {
         }
     }
 
-    if let Some(gpath) = &args.group_output {
+    if let Some(gpath) = &args.per_target {
         let group_metrics = bait::build_group_metrics(&all_metrics, &targets, args.target_padding);
         info!(
             "Writing {} target group metrics to {}",
@@ -298,10 +298,10 @@ mod tests {
     fn make_args(baits: PathBuf) -> ScoreRunArgs {
         ScoreRunArgs {
             baits,
-            output: None,
+            per_bait: None,
             reference: None,
             targets: None,
-            group_output: None,
+            per_target: None,
             target_padding: 0,
             blast_db: None,
             blast_db_path: None,
@@ -325,12 +325,12 @@ mod tests {
     }
 
     #[test]
-    fn test_run_score_targets_without_group_output_errors() {
+    fn test_run_score_targets_without_per_target_errors() {
         let mut f = NamedTempFile::new().unwrap();
         writeln!(f, "chr1\t0\t100\tbait1").unwrap();
         let mut args = make_args(f.path().to_path_buf());
         args.targets = Some(f.path().to_path_buf());
-        args.group_output = None;
+        args.per_target = None;
         let result = run_score(args);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
@@ -341,13 +341,13 @@ mod tests {
     }
 
     #[test]
-    fn test_run_score_group_output_without_targets_errors() {
+    fn test_run_score_per_target_without_targets_errors() {
         let mut f = NamedTempFile::new().unwrap();
         writeln!(f, "chr1\t0\t100\tbait1").unwrap();
         let group_out = NamedTempFile::new().unwrap();
         let mut args = make_args(f.path().to_path_buf());
         args.targets = None;
-        args.group_output = Some(group_out.path().to_path_buf());
+        args.per_target = Some(group_out.path().to_path_buf());
         let result = run_score(args);
         assert!(result.is_err());
     }
@@ -373,7 +373,7 @@ mod tests {
         writeln!(f, "chr1\t0\t100\tbait1").unwrap();
         let out = NamedTempFile::new().unwrap();
         let mut args = make_args(f.path().to_path_buf());
-        args.output = Some(out.path().to_path_buf());
+        args.per_bait = Some(out.path().to_path_buf());
         let result = run_score(args);
         assert!(
             result.is_ok(),
@@ -410,7 +410,7 @@ mod tests {
         let out = NamedTempFile::new().unwrap();
         let mut args = make_args(f.path().to_path_buf());
         args.threads = 2;
-        args.output = Some(out.path().to_path_buf());
+        args.per_bait = Some(out.path().to_path_buf());
         let result = run_score(args);
         assert!(
             result.is_ok(),
@@ -435,7 +435,7 @@ mod tests {
         let out = NamedTempFile::new().unwrap();
         let mut args = make_args(bed_f.path().to_path_buf());
         args.reference = Some(fasta);
-        args.output = Some(out.path().to_path_buf());
+        args.per_bait = Some(out.path().to_path_buf());
         let result = run_score(args);
         assert!(
             result.is_ok(),
@@ -467,8 +467,8 @@ mod tests {
         let group_out = NamedTempFile::new().unwrap();
         let mut args = make_args(fasta_f.path().to_path_buf());
         args.targets = Some(targets_f.path().to_path_buf());
-        args.group_output = Some(group_out.path().to_path_buf());
-        args.output = Some(out.path().to_path_buf());
+        args.per_target = Some(group_out.path().to_path_buf());
+        args.per_bait = Some(out.path().to_path_buf());
         let result = run_score(args);
         assert!(
             result.is_ok(),
@@ -505,7 +505,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_score_with_targets_and_group_output_succeeds() {
+    fn test_run_score_with_targets_and_per_target_succeeds() {
         let mut baits_f = NamedTempFile::new().unwrap();
         writeln!(baits_f, "chr1\t0\t100\tbait1").unwrap();
         let mut targets_f = NamedTempFile::new().unwrap();
@@ -514,8 +514,8 @@ mod tests {
         let group_out = NamedTempFile::new().unwrap();
         let mut args = make_args(baits_f.path().to_path_buf());
         args.targets = Some(targets_f.path().to_path_buf());
-        args.group_output = Some(group_out.path().to_path_buf());
-        args.output = Some(out.path().to_path_buf());
+        args.per_target = Some(group_out.path().to_path_buf());
+        args.per_bait = Some(out.path().to_path_buf());
         let result = run_score(args);
         assert!(
             result.is_ok(),

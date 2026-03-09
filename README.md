@@ -39,17 +39,14 @@ Evaluate baits from a FASTA file against a reference genome with all optional an
 ```bash
 ❯ chum score \
     --baits "baits.fa" \
-    --reference "hs38GIABv3.fa" \
     --targets "targets.bed" \
-    --output "per-bait.tsv" \
-    --group-output "per-target.tsv"
+    --reference "hs38GIABv3.fa" \
     --blast-db hs38GIABv3 \
-    --blast-db-path "/blast-dbs/hs38GIABv3/" \
+    --rep-base "hs38GIABv3_rmsk.bed.gz" \
     --mappability "k36.umap.bedgraph.gz" \
     --oligo-fold \
-    --oligo-fold-temp 65 \
-    --rep-base "hs38GIABv3_rmsk.bed.gz" \
-    --threads 12
+    --per-bait "per-bait.tsv" \
+    --per-target "per-target.tsv"
 ```
 
 #### Features
@@ -57,14 +54,14 @@ Evaluate baits from a FASTA file against a reference genome with all optional an
 - Accepts baits in BED, Interval List, or FASTA format (coordinates can be embedded in FASTA headers)
 - Computes per-bait QC metrics: sequence content, secondary structure, mappability, BLAST specificity
 - Multi-factor `bait_score` from 0.0 to 1.0 which may prompt discarding or redesigning of baits
-- Per-target group aggregation (min/mean/max per numeric field) with `--targets` & `--group-output`
+- Per-target group aggregation (min/mean/max per numeric field) with `--targets` & `--per-target`
 - Parallelizes bait evaluation across worker threads with `--threads` for very fast runtimes
 
 ###### Target Evaluation
 
 When a target interval file is supplied (`--targets`), `chum` outputs per-target aggregate metrics including minimum, mean, and maximum of each numeric bait field across all overlapping (or nearby) baits.
 Targets can be optionally padded which helps with linking near-baits to targets on either side of the original target interval with `--target-padding`.
-The aggregate output file is specified with `--group-output`, which must be supplied whenever `--targets` is set.
+The aggregate output file is specified with `--per-target`, which must be supplied whenever `--targets` is set.
 
 When interpreting mean metric values, note that baits with no value for a field are excluded from the mean, which may skew results.
 For example, if a target has three baits with `blast_hits` of `None`, `Some(2)`, and `None`, the mean `blast_hits` is reported as `2`, not `0.67`.
