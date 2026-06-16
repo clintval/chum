@@ -884,7 +884,10 @@ mod tests {
         let result = parse_interval_list_reader(Cursor::new(input));
         assert!(result.is_err());
         assert!(
-            result.unwrap_err().to_string().contains("start (200) > end (100)"),
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("start (200) > end (100)"),
             "error should report the inverted coordinates"
         );
     }

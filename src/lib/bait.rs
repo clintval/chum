@@ -424,7 +424,10 @@ pub(crate) fn load_sequences_from_fasta(
                 // the probe sequence itself is the reverse complement.
                 bait.sequence = Some(if bait.strand == Some('-') {
                     sequence::reverse_complement(&seq).with_context(|| {
-                        format!("Cannot reverse-complement sequence for bait '{}'", bait.name)
+                        format!(
+                            "Cannot reverse-complement sequence for bait '{}'",
+                            bait.name
+                        )
                     })?
                 } else {
                     seq

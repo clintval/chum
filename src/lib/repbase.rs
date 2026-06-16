@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 
 use crate::intervals::Bait;
-use noodles::csi::BinningIndex;
 use noodles::core::Region;
+use noodles::csi::BinningIndex;
 use noodles::tabix;
 
 /// A tabix-indexed bgzf-compressed BED reader for random-access RepBase lookup.

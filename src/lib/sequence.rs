@@ -22,9 +22,9 @@ use anyhow::{Context, Result};
 /// assert_eq!(reverse_complement("acgt").unwrap(), "acgt");
 /// ```
 pub fn reverse_complement(seq: &str) -> Result<String> {
-    String::from_utf8(bio::alphabets::dna::revcomp(seq.as_bytes())).with_context(|| {
-        "reverse complement produced non-UTF-8 output; the sequence contains non-ASCII bytes"
-    })
+    String::from_utf8(bio::alphabets::dna::revcomp(seq.as_bytes())).with_context(
+        || "reverse complement produced non-UTF-8 output; the sequence contains non-ASCII bytes",
+    )
 }
 
 /// Compute GC content as a fraction.
