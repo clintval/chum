@@ -14,8 +14,9 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
         with:
+          toolchain: stable
           components: rustfmt
       - name: Check format
         run: pixi run cargo fmt -- --check
@@ -28,8 +29,9 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
         with:
+          toolchain: stable
           components: clippy
       - name: Lint with clippy
         run: pixi run cargo clippy --all-targets --all-features -- -D warnings
@@ -50,7 +52,9 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
+        with:
+          toolchain: stable
       - name: Run tests
         run: pixi run cargo test --all --no-fail-fast --verbose
 
@@ -62,7 +66,9 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
       - name: Install nightly toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
+        with:
+          toolchain: nightly
       - name: Install cargo-tarpaulin
         run: pixi run cargo install cargo-tarpaulin
       - name: Coverage with tarpaulin
